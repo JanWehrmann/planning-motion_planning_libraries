@@ -52,8 +52,7 @@ class Sbpl : public AbstractMotionPlanningLibrary
      * Driveability 0.0 to 1.0 is mapped to costs SBPL_MAX_COST + 1  to 1 with obstacle threshold SBPL_MAX_COST + 1.
      * (+1 because costs of 0 should be avoided).
      */
-    void createSBPLMap(envire::TraversabilityGrid* trav_grid, 
-            boost::shared_ptr<TravData> trav_data);
+    void createSBPLMap(maps::grid::TraversabilityGrid* trav_grid);
     
     /**
      * The footprint has to be defined in meter.

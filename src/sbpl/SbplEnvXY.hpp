@@ -15,8 +15,7 @@ class SbplEnvXY : public Sbpl
     /**
      * 
      */
-    virtual bool initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data);
+    virtual bool initialize(maps::grid::TraversabilityGrid* trav_grid);
     
     virtual bool partialMapUpdate(std::vector<CellUpdate>& cell_updates);
     

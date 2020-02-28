@@ -36,7 +36,7 @@ rock_library(motion_planning_libraries
         ompl/validators/TravMapValidator.hpp 
         ompl/objectives/TravGridObjective.hpp
         ompl/spaces/SherpaStateSpace.hpp
-    DEPS_PKGCONFIG envire
+    DEPS_PKGCONFIG maps
         ompl
         sbpl
         base-types

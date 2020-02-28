@@ -5,7 +5,7 @@
 #include <base/Waypoint.hpp>
 #include <base/Trajectory.hpp>
 
-#include <envire/maps/TraversabilityGrid.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
 
 #include "Config.hpp"
 #include "State.hpp"
@@ -13,9 +13,6 @@
 
 namespace motion_planning_libraries
 {
-
-typedef envire::TraversabilityGrid::ArrayType TravData;
-    
 /**
  * \mainpage MPL - Motion Planning Libraries
  * \section Introduction
@@ -141,10 +138,9 @@ class MotionPlanningLibraries
     
     boost::shared_ptr<AbstractMotionPlanningLibrary> mpPlanningLib;
     
-    envire::TraversabilityGrid* mpTravGrid;
-    boost::shared_ptr<TravData> mpTravData;
+    maps::grid::TraversabilityGrid* mpTravGrid;
     // Receives a copy of each trav grid, which is used for partial update testing.
-    envire::TraversabilityGrid* mpLastTravGrid;
+    maps::grid::TraversabilityGrid* mpLastTravGrid;
     struct State mStartState, mGoalState; // Pose in world coordinates.
     struct State mStartStateGrid, mGoalStateGrid;
     std::vector<State> mPlannedPathInWorld; // Pose in world coordinates.
@@ -152,6 +148,7 @@ class MotionPlanningLibraries
     bool mNewGoalReceived;
     double mLostX; // Used to trac discretization error.
     double mLostY;
+    static Eigen::Affine3d mWorld2Local;
     
  public: 
     enum MplErrors mError; 
@@ -166,7 +163,7 @@ class MotionPlanningLibraries
      * Currently a new map will reinitialize the complete planning library.
      * \todo "If possible cell updates should be used."
      */
-    bool setTravGrid(envire::Environment* env, std::string trav_map_id);
+    bool setTravGrid(maps::grid::TraversabilityGrid* travGrid);
     
     inline bool travGridAvailable() {
         return mpTravGrid != NULL;
@@ -285,11 +282,24 @@ class MotionPlanningLibraries
     }
     
     bool getSbplMotionPrimitives(struct SbplMotionPrimitives& prims);
+
+    /**
+     * Set the transformation between world and local coordinates.
+     * @param world2local : transformation between the world frame and the local frame.
+     *                      Will be set to identity by default.
+     */
+    static void setWorld2Local(Eigen::Affine3d world2local);
+
+    /**
+     * Get the transformation between world and local coordinates.
+     * @returns : the transformation between the world frame and the local frame.
+     */
+    static Eigen::Affine3d getWorld2Local();
     
     /**
      * Converts the world pose to grid coordinates including the transformed orientation.
      */        
-    static bool world2grid(envire::TraversabilityGrid const* trav, 
+    static bool world2grid(maps::grid::TraversabilityGrid const* trav,
         base::samples::RigidBodyState const& world_pose, 
         base::samples::RigidBodyState& grid_pose,
         double* lost_x = NULL,
@@ -298,7 +308,7 @@ class MotionPlanningLibraries
     /**
      * Transforms the grid-coordinates to grid local to world.
      */
-    bool grid2world(envire::TraversabilityGrid const* trav,
+    bool grid2world(maps::grid::TraversabilityGrid const* trav,
             base::samples::RigidBodyState const& grid_pose, 
             base::samples::RigidBodyState& world_pose);
      
@@ -307,25 +317,18 @@ class MotionPlanningLibraries
      * Poses within the grid local frame use meter and radians (-PI, PI] instead of
      * discrete grid coordinates.
      */
-    bool gridlocal2world(envire::TraversabilityGrid const* trav,
+    bool gridlocal2world(maps::grid::TraversabilityGrid const* trav,
         base::samples::RigidBodyState const& grid_local_pose,
         base::samples::RigidBodyState& world_pose);
     
  private:
     /**
-     * Extracts the traversability map \a trav_map_id from the passed environment.
-     * If the id is not available, the first traversability map will be used.
-     */
-    envire::TraversabilityGrid* extractTravGrid(envire::Environment* env, 
-            std::string trav_map_id);
-    
-    /**
      * Collects different cells regarding the klass and the probability.
      * The size of both maps have to be the same.
      * TODO Currently 
      */
-    void collectCellUpdates( envire::TraversabilityGrid* old_map, 
-            envire::TraversabilityGrid* new_map,
+    void collectCellUpdates(maps::grid::TraversabilityGrid* old_map,
+            maps::grid::TraversabilityGrid* new_map,
             std::vector<CellUpdate>& cell_updates);
 };
 

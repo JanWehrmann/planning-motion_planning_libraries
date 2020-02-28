@@ -7,8 +7,8 @@
 #include <base/samples/RigidBodyState.hpp>
 #include <base/Waypoint.hpp>
 
-#include <envire/maps/TraversabilityGrid.hpp>
-#include <envire/operators/SimpleTraversability.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
+#include <maps/tools/SimpleTraversability.hpp>
 
 #include <ompl/base/StateValidityChecker.h>
 #include <ompl/base/spaces/SE2StateSpace.h>
@@ -22,15 +22,11 @@ class TraversabilityGrid;
 
 namespace motion_planning_libraries
 {
-    
-typedef envire::TraversabilityGrid::ArrayType TravData;
-
 class TravMapValidator:  public ompl::base::StateValidityChecker {
  
  private:
     ompl::base::SpaceInformationPtr mpSpaceInformation;
-    envire::TraversabilityGrid* mpTravGrid; // To request the driveability values.
-    boost::shared_ptr<TravData> mpTravData;
+    maps::grid::TraversabilityGrid* mpTravGrid; // To request the driveability values.
     Config mConfig;
     mutable GridCalculations mGridCalc;
     
@@ -39,13 +35,12 @@ class TravMapValidator:  public ompl::base::StateValidityChecker {
             Config config);
  
     TravMapValidator(const ompl::base::SpaceInformationPtr& si,
-            envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data,
+            maps::grid::TraversabilityGrid* trav_grid,
             Config config);
     
     ~TravMapValidator();
     
-    void setTravGrid(envire::TraversabilityGrid* trav_grid, boost::shared_ptr<TravData> trav_data);
+    void setTravGrid(maps::grid::TraversabilityGrid* trav_grid);
     
     bool isValid(const ompl::base::State* state) const;
 };

@@ -14,17 +14,16 @@ SbplEnvXYTHETA::SbplEnvXYTHETA(Config config) : Sbpl(config),
     LOG_DEBUG("SbplEnvXYTHETA constructor");
 }
 
-bool SbplEnvXYTHETA::initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data) { 
+bool SbplEnvXYTHETA::initialize(maps::grid::TraversabilityGrid* trav_grid) {
     
     LOG_DEBUG("SBPLEnvXYTHETA initialize");
     
     mPrims = NULL;
     
-    size_t grid_width = trav_grid->getCellSizeX();
-    size_t grid_height = trav_grid->getCellSizeY();
-    double scale_x = trav_grid->getScaleX();
-    double scale_y = trav_grid->getScaleY();
+    size_t grid_width = trav_grid->getNumCells().x();
+    size_t grid_height = trav_grid->getNumCells().y();
+    double scale_x = trav_grid->getResolution().x();
+    double scale_y = trav_grid->getResolution().y();
     
     mSBPLScaleX = scale_x;
     mSBPLScaleY = scale_y;
@@ -71,7 +70,7 @@ bool SbplEnvXYTHETA::initialize(envire::TraversabilityGrid* trav_grid,
             mPrims->createPrimitives();
             mPrims->storeToFile(mprim_file);
         }
-        createSBPLMap(trav_grid, grid_data);
+        createSBPLMap(trav_grid);
         LOG_INFO("Create SBPL EnvironmentNAVXYTHETAMLEVLAT environment");
         boost::shared_ptr<EnvironmentNAVXYTHETAMLEVLAT> env_xytheta =
                 boost::dynamic_pointer_cast<EnvironmentNAVXYTHETAMLEVLAT>(mpSBPLEnv);

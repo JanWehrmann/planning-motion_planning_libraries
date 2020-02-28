@@ -18,17 +18,16 @@ namespace motion_planning_libraries
 OmplEnvXY::OmplEnvXY(Config config) : Ompl(config) {
 }
  
-bool OmplEnvXY::initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data) { 
+bool OmplEnvXY::initialize(maps::grid::TraversabilityGrid* trav_grid) {
 
     LOG_INFO("Create OMPL RealVector(2) environment");
     
     mpStateSpace = ob::StateSpacePtr(new ob::RealVectorStateSpace(2));
     ob::RealVectorBounds bounds(2);
     bounds.setLow (0, 0);
-    bounds.setHigh(0, trav_grid->getCellSizeX());
+    bounds.setHigh(0, trav_grid->getNumCells().x());
     bounds.setLow (1, 0);
-    bounds.setHigh(1, trav_grid->getCellSizeY());
+    bounds.setHigh(1, trav_grid->getNumCells().y());
     mpStateSpace->as<ob::RealVectorStateSpace>()->setBounds(bounds);
     // Defines the divisor for each dimension.
     // E.g. width = 100, divisor 0.01 -> if dist(x1,x2) >= 1 motion validation required
@@ -38,7 +37,7 @@ bool OmplEnvXY::initialize(envire::TraversabilityGrid* trav_grid,
             new ob::SpaceInformation(mpStateSpace));
  
     mpTravMapValidator = ob::StateValidityCheckerPtr(new TravMapValidator(
-                mpSpaceInformation, trav_grid, grid_data, mConfig));
+                mpSpaceInformation, trav_grid, mConfig));
     mpSpaceInformation->setStateValidityChecker(mpTravMapValidator);
     // 1/mpStateSpace->getMaximumExtent() (max dist between two states) -> resolution of one meter.
     mpSpaceInformation->setStateValidityCheckingResolution (1/mpStateSpace->getMaximumExtent());
@@ -50,7 +49,7 @@ bool OmplEnvXY::initialize(envire::TraversabilityGrid* trav_grid,
     mpPathLengthOptimization = ob::OptimizationObjectivePtr(
         new ob::PathLengthOptimizationObjective(mpSpaceInformation));
     mpTravGridObjective = ob::OptimizationObjectivePtr(new TravGridObjective(mpSpaceInformation, false,
-            trav_grid, grid_data, mConfig));
+            trav_grid, mConfig));
     mpProblemDefinition->setOptimizationObjective(getBalancedObjective(mpSpaceInformation));
 
     if(mConfig.mSearchUntilFirstSolution) { // Not optimizing planner, 

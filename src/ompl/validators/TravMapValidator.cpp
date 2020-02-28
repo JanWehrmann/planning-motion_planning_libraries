@@ -19,26 +19,22 @@ TravMapValidator::TravMapValidator(const ompl::base::SpaceInformationPtr& si,
 }
 
 TravMapValidator::TravMapValidator(const ompl::base::SpaceInformationPtr& si,
-            envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data,
+            maps::grid::TraversabilityGrid* trav_grid,
             Config config) : 
             ompl::base::StateValidityChecker(si),
             mpSpaceInformation(si),
             mpTravGrid(trav_grid),
-            mpTravData(grid_data),
             mConfig(config), 
             mGridCalc() {
-    mGridCalc.setTravGrid(trav_grid, grid_data);
+    mGridCalc.setTravGrid(trav_grid);
 }
 
 TravMapValidator::~TravMapValidator() {
 }
 
-void TravMapValidator::setTravGrid(envire::TraversabilityGrid* trav_grid, 
-        boost::shared_ptr<TravData> trav_data) {
+void TravMapValidator::setTravGrid(maps::grid::TraversabilityGrid* trav_grid) {
     mpTravGrid = trav_grid;
-    mpTravData = trav_data;
-    mGridCalc.setTravGrid(trav_grid, trav_data);
+    mGridCalc.setTravGrid(trav_grid);
 }
     
 bool TravMapValidator::isValid(const ompl::base::State* state) const
@@ -58,15 +54,14 @@ bool TravMapValidator::isValid(const ompl::base::State* state) const
             y_grid = (int)state_rv->values[1];
 
             // Check borders.
-            if(     x_grid < 0 || x_grid >= (int)mpTravGrid->getCellSizeX() ||
-                    y_grid < 0 || y_grid >= (int)mpTravGrid->getCellSizeY()) {
+            if(     x_grid < 0 || x_grid >= static_cast<int>(mpTravGrid->getNumCells().x()) ||
+                    y_grid < 0 || y_grid >= static_cast<int>(mpTravGrid->getNumCells().y())) {
                 LOG_DEBUG("State (%d,%d) is invalid (not within the grid)", x_grid, y_grid);
                 return false;
             }   
 
             // Check obstacle.
-            double class_value = (double)(*mpTravData)[y_grid][x_grid];
-            double driveability = (mpTravGrid->getTraversabilityClass(class_value)).getDrivability();
+            float driveability = mpTravGrid->getTraversability(x_grid, y_grid).getDrivability();
                 
             if(driveability == 0.0) {
                 LOG_DEBUG("State (%d,%d) is invalid (lies on an obstacle)", x_grid, y_grid);
@@ -86,7 +81,7 @@ bool TravMapValidator::isValid(const ompl::base::State* state) const
             
             double max_fp = std::max(mConfig.mFootprintRadiusMinMax.first, mConfig.mFootprintRadiusMinMax.second);
             // We use the smaller scale value to check a larger area (actually they should be the same).
-            double min_scale = std::min(mpTravGrid->getScaleX(), mpTravGrid->getScaleY());              
+            double min_scale = std::min(mpTravGrid->getResolution().x(), mpTravGrid->getResolution().y());
             
             mGridCalc.setFootprintCircleInGrid(0);
             mGridCalc.setFootprintCircleInGrid((int)std::ceil(max_fp / min_scale));
@@ -110,7 +105,7 @@ bool TravMapValidator::isValid(const ompl::base::State* state) const
                 mConfig.mNumFootprintClasses,
                 fp_class);
             // Used to calculate the number of grids.
-            double min_scale = std::min(mpTravGrid->getScaleX(), mpTravGrid->getScaleY());
+            double min_scale = std::min(mpTravGrid->getResolution().x(), mpTravGrid->getResolution().x());
             
             mGridCalc.setFootprintCircleInGrid(std::ceil(state.getFootprintRadius()/min_scale), false);
             mGridCalc.setFootprintPoseInGrid(x_grid, y_grid, yaw_grid);

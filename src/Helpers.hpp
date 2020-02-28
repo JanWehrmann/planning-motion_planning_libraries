@@ -4,18 +4,17 @@
 #include <boost/shared_ptr.hpp>
 //#include <CGAL/Point_2.h>
 
-#include <envire/maps/TraversabilityGrid.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
 
 namespace motion_planning_libraries
 {
 
-typedef envire::TraversabilityGrid::ArrayType TravData;
+// typedef envire::TraversabilityGrid::ArrayType TravData;
     
 class GridCalculations {
  
  private:
-    envire::TraversabilityGrid* mpTravGrid;
-    boost::shared_ptr<TravData> mpTravData;
+    maps::grid::TraversabilityGrid* mpTravGrid;
     Eigen::Affine3d mFootprint2Grid;
     // Contains all coordinates within the local frame.
     std::vector< base::Vector3d > mFootprintLocal;
@@ -23,18 +22,16 @@ class GridCalculations {
  public:    
  
     GridCalculations() : mpTravGrid(NULL),
-            mpTravData(),
             mFootprint2Grid(),
             mFootprintLocal() {
     }
  
-    void setTravGrid(envire::TraversabilityGrid* trav_grid, boost::shared_ptr<TravData> trav_data) {
+    void setTravGrid(maps::grid::TraversabilityGrid* trav_grid) {
         if(trav_grid == NULL) {
             LOG_WARN("setTravGrid: Received an empty traversability map");
         }
         
-        mpTravGrid = trav_grid; 
-        mpTravData = trav_data;
+        mpTravGrid = trav_grid;
     }
     
     void setFootprintRectangleInGrid(int rectangle_lenth_x, int rectangle_width_y) {
@@ -110,8 +107,7 @@ class GridCalculations {
         int fp_x = 0;
         int fp_y = 0;
         base::Vector3d result;
-        uint8_t class_value = 0;
-        double driveability = 0;
+        float driveability = 0;
         
         std::vector<base::Vector3d>::iterator it = mFootprintLocal.begin(); 
         for(;it != mFootprintLocal.end(); ++it) {
@@ -122,16 +118,15 @@ class GridCalculations {
             fp_y = result[1];
              
             // Check borders.
-            if(     fp_x < 0 || fp_x >= (int)mpTravGrid->getCellSizeX() ||
-                    fp_y < 0 || fp_y >= (int)mpTravGrid->getCellSizeY()) {
+            if(     fp_x < 0 || fp_x >= (int)mpTravGrid->getNumCells().x() ||
+                    fp_y < 0 || fp_y >= (int)mpTravGrid->getNumCells().y()) {
                 LOG_DEBUG("State (%d,%d) is invalid (footprint (%4.2f,%4.2f) not within the grid)", 
                         mFootprint2Grid.translation()[0], mFootprint2Grid.translation()[1], fp_x, fp_y);
                 return false;
             } 
             
             // Check obstacle.
-            class_value = (*mpTravData)[fp_y][fp_x];
-            driveability = (mpTravGrid->getTraversabilityClass(class_value)).getDrivability();
+            driveability = (mpTravGrid->getTraversability(fp_x, fp_y)).getDrivability();
         
             if(driveability == 0.0) {
                 LOG_DEBUG("State (%d,%d) is invalid (footprint (%4.2f,%4.2f) lies on an obstacle)", 
@@ -169,13 +164,12 @@ class GridCalculations {
             fp_y = result[1];
             
             // Check borders.
-            if(     fp_x < 0 || fp_x >= (int)mpTravGrid->getCellSizeX() ||
-                    fp_y < 0 || fp_y >= (int)mpTravGrid->getCellSizeY()) {
+            if(     fp_x < 0 || fp_x >= (int)mpTravGrid->getNumCells().x() ||
+                    fp_y < 0 || fp_y >= (int)mpTravGrid->getNumCells().y()) {
                 continue;
             }     
             
-            (*mpTravData)[fp_y][fp_x] = cost_class;
-            mpTravGrid->setProbability(1.0, fp_x, fp_y);
+            mpTravGrid->setTraversabilityAndProbability(cost_class, 1.0, fp_x, fp_y);
         }
     }
 };

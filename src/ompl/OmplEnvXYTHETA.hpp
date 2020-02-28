@@ -31,8 +31,7 @@ class OmplEnvXYTHETA : public Ompl
     /**
      * (Re-)creates the complete ompl environment.
      */
-    virtual bool initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data);
+    virtual bool initialize(maps::grid::TraversabilityGrid* trav_grid);
     
     /**
      * Sets the global start and goal poses (in grid coordinates) in OMPL.

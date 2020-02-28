@@ -30,8 +30,7 @@ OmplEnvXYTHETA::OmplEnvXYTHETA(Config config) : Ompl(config) {
     mCarLength = length;
 }
  
-bool OmplEnvXYTHETA::initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data) {
+bool OmplEnvXYTHETA::initialize(maps::grid::TraversabilityGrid* trav_grid) {
   
     // Will define a control problem in SE2 (X, Y, THETA).
     LOG_INFO("Create OMPL SE2 environment");
@@ -39,11 +38,11 @@ bool OmplEnvXYTHETA::initialize(envire::TraversabilityGrid* trav_grid,
     mpStateSpace = ompl::base::StateSpacePtr(new ob::SE2StateSpace());
     ob::RealVectorBounds bounds(2);
     bounds.setLow (0, 0);
-    bounds.setHigh(0, trav_grid->getCellSizeX());
+    bounds.setHigh(0, trav_grid->getNumCells().x());
     bounds.setLow (1, 0);
-    bounds.setHigh(1, trav_grid->getCellSizeY());
+    bounds.setHigh(1, trav_grid->getNumCells().y());
     mpStateSpace->as<ob::SE2StateSpace>()->setBounds(bounds);
-    mpStateSpace->setLongestValidSegmentFraction(1/(double)trav_grid->getCellSizeX());
+    mpStateSpace->setLongestValidSegmentFraction(1/static_cast<double>(trav_grid->getNumCells().x()));
     
     mpControlSpace = ompl::control::ControlSpacePtr(
             new ompl::control::RealVectorControlSpace(mpStateSpace, 2));
@@ -75,7 +74,7 @@ bool OmplEnvXYTHETA::initialize(envire::TraversabilityGrid* trav_grid,
     mpControlSpaceInformation->setMinMaxControlDuration(1,10);
 
     mpTravMapValidator = ob::StateValidityCheckerPtr(new TravMapValidator(
-                mpControlSpaceInformation, trav_grid, grid_data, mConfig));
+                mpControlSpaceInformation, trav_grid, mConfig));
     mpControlSpaceInformation->setStateValidityChecker(mpTravMapValidator);
     mpControlSpaceInformation->setup();
         
@@ -85,7 +84,7 @@ bool OmplEnvXYTHETA::initialize(envire::TraversabilityGrid* trav_grid,
     mpPathLengthOptimization = ob::OptimizationObjectivePtr(
         new ob::PathLengthOptimizationObjective(mpControlSpaceInformation));
     mpTravGridObjective = ob::OptimizationObjectivePtr(new TravGridObjective(mpControlSpaceInformation, false,
-            trav_grid, grid_data, mConfig));
+            trav_grid, mConfig));
     mpProblemDefinition->setOptimizationObjective(getBalancedObjective(mpControlSpaceInformation));
     
     // Control based planner, optimization is not supported by OMPL.

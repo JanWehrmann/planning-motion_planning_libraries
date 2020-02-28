@@ -21,8 +21,7 @@ namespace motion_planning_libraries
 OmplEnvSHERPA::OmplEnvSHERPA(Config config) : Ompl(config) {
 }
  
-bool OmplEnvSHERPA::initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data) { 
+bool OmplEnvSHERPA::initialize(maps::grid::TraversabilityGrid* trav_grid) {
 
     LOG_INFO("Create OMPL SHERPA environment");
     
@@ -34,22 +33,22 @@ bool OmplEnvSHERPA::initialize(envire::TraversabilityGrid* trav_grid,
     SherpaStateSpace* sherpa_state_space = new SherpaStateSpace(mConfig);
     ob::RealVectorBounds bounds(2);
     bounds.setLow (0, 0);
-    bounds.setHigh(0, trav_grid->getCellSizeX());
+    bounds.setHigh(0, trav_grid->getNumCells().x());
     bounds.setLow (1, 0);
-    bounds.setHigh(1, trav_grid->getCellSizeY());
+    bounds.setHigh(1, trav_grid->getNumCells().y());
     sherpa_state_space->setBounds(bounds); // Sets bounds for the position.
     mpStateSpace = ob::StateSpacePtr(sherpa_state_space);
     
     // E.g. max extend/distance 1204 grids (1200x100map), min radius * 2: 10 grid -> 0.008 longest segment 
     mpStateSpace->setLongestValidSegmentFraction(
-            ((2*mConfig.mFootprintRadiusMinMax.first) / trav_grid->getScaleX()) / 
+            ((2*mConfig.mFootprintRadiusMinMax.first) / trav_grid->getResolution().x()) /
             mpStateSpace->getMaximumExtent());
     
     mpSpaceInformation = ob::SpaceInformationPtr(
             new ob::SpaceInformation(mpStateSpace));
  
     mpTravMapValidator = ob::StateValidityCheckerPtr(new TravMapValidator(
-                mpSpaceInformation, trav_grid, grid_data, mConfig));
+                mpSpaceInformation, trav_grid, mConfig));
     mpSpaceInformation->setStateValidityChecker(mpTravMapValidator);
     // 1/mpStateSpace->getMaximumExtent() (max dist between two states) -> resolution of one meter.
     // mpSpaceInformation->setStateValidityCheckingResolution (1/mpStateSpace->getMaximumExtent());
@@ -62,7 +61,7 @@ bool OmplEnvSHERPA::initialize(envire::TraversabilityGrid* trav_grid,
     mpPathLengthOptimization = ob::OptimizationObjectivePtr(
         new ob::PathLengthOptimizationObjective(mpSpaceInformation));
     mpTravGridObjective = ob::OptimizationObjectivePtr(new TravGridObjective(mpSpaceInformation, false,
-            trav_grid, grid_data, mConfig));
+            trav_grid, mConfig));
     mpProblemDefinition->setOptimizationObjective(getBalancedObjective(mpSpaceInformation));
 
     if(mConfig.mSearchUntilFirstSolution) { // Not optimizing planner, 

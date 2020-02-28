@@ -6,7 +6,7 @@
 #include <motion_planning_libraries/sbpl/SbplMotionPrimitives.hpp>
 
 #include <envire/core/Environment.hpp>
-#include <envire/maps/TraversabilityGrid.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
 
 int main(int argc, char** argv)
 {
@@ -49,17 +49,12 @@ int main(int argc, char** argv)
     conf.mJointBorders.clear();
 
     // Create the trav map.
-    envire::Environment* env = new  envire::Environment();
-    envire::TraversabilityGrid* trav = new envire::TraversabilityGrid(100, 100, 0.1, 0.1);
-    boost::shared_ptr<TravData> trav_data = boost::shared_ptr<TravData>(new TravData(
-            trav->getGridData(envire::TraversabilityGrid::TRAVERSABILITY)));
-    trav->setTraversabilityClass(0, envire::TraversabilityClass(0.5)); // driveability of unknown
-    trav->setTraversabilityClass(1, envire::TraversabilityClass(0.0)); // driveability of obstacles
-    trav->setUniqueId("/trav_map");
-    env->attachItem(trav);
-    envire::FrameNode* frame_node = new envire::FrameNode();
-    env->getRootNode()->addChild(frame_node);
-    trav->setFrameNode(frame_node);
+    maps::grid::TraversabilityCell defaultCell = maps::grid::TraversabilityCell();
+    maps::grid::TraversabilityGrid* trav = new maps::grid::TraversabilityGrid(maps::grid::Vector2ui(100, 100),
+                                                                              maps::grid::Vector2d(0.1, 0.1),
+                                                                              defaultCell);
+    trav->setTraversabilityClass(0, maps::grid::TraversabilityClass(0.5)); // driveability of unknown
+    trav->setTraversabilityClass(1, maps::grid::TraversabilityClass(0.0)); // driveability of obstacles
  
     // Create start and goal
     base::samples::RigidBodyState rbs_start;
@@ -69,7 +64,7 @@ int main(int argc, char** argv)
     
     // Draw a rectangle in the center 
     GridCalculations calc;
-    calc.setTravGrid(trav, trav_data);
+    calc.setTravGrid(trav);
     
     // x,y,theta,width,length
     calc.setFootprintRectangleInGrid(10, 10); // length, width
@@ -87,7 +82,7 @@ int main(int argc, char** argv)
     std::cout << "Footprint 3 " << (calc.isValid() ? "valid" : "not valid") << std::endl;
     
     MotionPlanningLibraries sbpl(conf);
-    sbpl.setTravGrid(env, "/trav_map");
+    sbpl.setTravGrid(trav);
     sbpl.setStartState(State(rbs_start));
     sbpl.setGoalState(State(rbs_goal));
 

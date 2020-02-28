@@ -7,23 +7,16 @@
 #include <motion_planning_libraries/Helpers.hpp>
 #include <motion_planning_libraries/sbpl/SbplMotionPrimitives.hpp>
 
-#include <envire/core/Environment.hpp>
-#include <envire/maps/TraversabilityGrid.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
 
 using namespace motion_planning_libraries;
 
 struct Fixture {
     Fixture(){
-        env = new  envire::Environment();
-        trav = new envire::TraversabilityGrid(100, 100, 0.1, 0.1);
-        trav_data = boost::shared_ptr<TravData>(new TravData(trav->getGridData(envire::TraversabilityGrid::TRAVERSABILITY)));
-        trav->setTraversabilityClass(0, envire::TraversabilityClass(0.5)); // driveability of unknown
-        trav->setTraversabilityClass(1, envire::TraversabilityClass(0.0)); // driveability of obstacles
-        trav->setUniqueId("/trav_map");
-        env->attachItem(trav);
-        envire::FrameNode* frame_node = new envire::FrameNode();
-        env->getRootNode()->addChild(frame_node);
-        trav->setFrameNode(frame_node);
+        maps::grid::TraversabilityCell defaultCell = maps::grid::TraversabilityCell();
+        trav = new maps::grid::TraversabilityGrid(maps::grid::Vector2ui(100, 100), maps::grid::Vector2d(0.1, 0.1), defaultCell);
+        trav->setTraversabilityClass(0, maps::grid::TraversabilityClass(0.5)); // driveability of unknown
+        trav->setTraversabilityClass(1, maps::grid::TraversabilityClass(0.0)); // driveability of obstacles
 
         // Set start and goal
         rbs_start.setPose(base::Pose(base::Position(1,1,0), base::Orientation::Identity()));
@@ -33,12 +26,10 @@ struct Fixture {
         
     }
     
-    ~Fixture() { 
-        delete env;
+    ~Fixture() {
     }
-    envire::Environment* env;
-    envire::TraversabilityGrid* trav;
-    boost::shared_ptr<TravData> trav_data;
+    double cost = 0;
+    maps::grid::TraversabilityGrid* trav;
     Config conf;
     base::samples::RigidBodyState rbs_start;
     base::samples::RigidBodyState rbs_goal;

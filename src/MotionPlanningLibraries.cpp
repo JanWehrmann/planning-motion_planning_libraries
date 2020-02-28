@@ -12,11 +12,12 @@
 namespace motion_planning_libraries
 {
 
+Eigen::Affine3d MotionPlanningLibraries::mWorld2Local = Eigen::Affine3d::Identity();
+
 // PUBLIC
 MotionPlanningLibraries::MotionPlanningLibraries(Config config) : 
         mConfig(config),
         mpTravGrid(NULL), 
-        mpTravData(),
         mpLastTravGrid(NULL),
         mStartState(), mGoalState(), 
         mStartStateGrid(), mGoalStateGrid(), 
@@ -105,35 +106,36 @@ MotionPlanningLibraries::MotionPlanningLibraries(Config config) :
 MotionPlanningLibraries::~MotionPlanningLibraries() {
 }
 
-bool MotionPlanningLibraries::setTravGrid(envire::Environment* env, std::string trav_map_id) {
+bool MotionPlanningLibraries::setTravGrid(maps::grid::TraversabilityGrid* trav_grid) {
 
     if(mpPlanningLib == NULL) {
         LOG_WARN("Planning library has not been allocated yet");
         return false;
     }
-    envire::TraversabilityGrid* trav_grid = extractTravGrid(env, trav_map_id);
     if(trav_grid == NULL) {
         LOG_WARN("Traversability map could not be extracted");
         return false;
     } 
     
     LOG_INFO("Received Trav Map: Number of cells (%d, %d), cell size in meter (%4.2f, %4.2f), offset (%4.2f, %4.2f)", 
-            trav_grid->getCellSizeX(), trav_grid->getCellSizeY(), 
-            trav_grid->getScaleX(), trav_grid->getScaleY(), 
-            trav_grid->getOffsetX(), trav_grid->getOffsetY());
+            trav_grid->getNumCells().x(), trav_grid->getNumCells().y(),
+            trav_grid->getResolution().x(), trav_grid->getResolution().x(),
+            trav_grid->getLocalFrame().translation().x(), trav_grid->getLocalFrame().translation().y());
     
     // Currently if you start the grap-slam-module and do not wait a few seconds
     // you get a map with sizex/sizey 0.1.
-    if(trav_grid->getSizeX() < 1 || trav_grid->getSizeY() < 1) {
-        LOG_ERROR("Size of the extracted map is incorrect (%4.2f, %4.2f)", trav_grid->getSizeX(), trav_grid->getSizeY());
+    if(trav_grid->getSize().x() < 1 || trav_grid->getSize().y() < 1) {
+        LOG_ERROR("Size of the extracted map is incorrect (%4.2f, %4.2f)",
+                  trav_grid->getSize().x(),
+                  trav_grid->getSize().y());
         return false;
     }
     
     // If the map size has not changed, partial updates are possible.
     bool different_map_size = true;
     if(mpLastTravGrid != NULL) {
-        different_map_size = mpTravGrid->getWidth() != mpLastTravGrid->getWidth() ||
-            mpTravGrid->getHeight() != mpLastTravGrid->getHeight();
+        different_map_size = mpTravGrid->getSize().x() != mpLastTravGrid->getSize().x() ||
+            mpTravGrid->getSize().y() != mpLastTravGrid->getSize().y();
         LOG_INFO("Trav map sizes are different: %s", different_map_size ? "true" : "false");
     }
     
@@ -151,22 +153,17 @@ bool MotionPlanningLibraries::setTravGrid(envire::Environment* env, std::string 
     }
     
     mpTravGrid = trav_grid;
-    // Creates a copy of the new grid data.
-    mpTravData = boost::shared_ptr<TravData>(new TravData(
-            trav_grid->getGridData(envire::TraversabilityGrid::TRAVERSABILITY)));
     
     // Stores last trav map for partial update testing.
     if(mpLastTravGrid != NULL) {
         delete mpLastTravGrid;
         mpLastTravGrid = NULL;
     }
-    mpLastTravGrid = new envire::TraversabilityGrid(*mpTravGrid);
-    //envire::TraversabilityGrid grid = *mpTravGrid;
-    
+    mpLastTravGrid = new maps::grid::TraversabilityGrid(*mpTravGrid);
     
     // Reinitialize the complete planning environment.
     // Will be used if the partial update has not been implemented or could not be executed.
-    if(!partial_update_successful && !mpPlanningLib->initialize(mpTravGrid, mpTravData)) {
+    if(!partial_update_successful && !mpPlanningLib->initialize(mpTravGrid)) {
         LOG_WARN("Initialization (navigation) failed"); 
         mError = MPL_ERR_INITIALIZE_MAP;
         return false;
@@ -593,9 +590,9 @@ std::vector<base::Trajectory> MotionPlanningLibraries::getEscapeTrajectoryInWorl
     std::vector<base::Trajectory> trajectories = getTrajectoryInWorld();
     std::vector<base::Trajectory> inverted_trajectories;
     GridCalculations grid_calc;
-    grid_calc.setTravGrid(mpTravGrid, mpTravData);
+    grid_calc.setTravGrid(mpTravGrid);
     double max_radius = mConfig.getMaxRadius();
-    double min_cell_size = std::min(mpTravGrid->getScaleX(), mpTravGrid->getScaleY());
+    double min_cell_size = std::min(mpTravGrid->getResolution().x(), mpTravGrid->getResolution().y());
     double robot_max_radius_in_grid =   max_radius / min_cell_size; 
     // Checks all cells within the radius.. can be very expensive.
     // Footprint radius is increased a little bit to add some extra safety distance.
@@ -746,7 +743,18 @@ bool MotionPlanningLibraries::getSbplMotionPrimitives(struct SbplMotionPrimitive
     }
 }
 
-bool MotionPlanningLibraries::world2grid(envire::TraversabilityGrid const* trav,
+void MotionPlanningLibraries::setWorld2Local(Eigen::Affine3d world2local)
+{
+    mWorld2Local = world2local;
+}
+
+Eigen::Affine3d MotionPlanningLibraries::getWorld2Local()
+{
+    return mWorld2Local;
+}
+
+
+bool MotionPlanningLibraries::world2grid(maps::grid::TraversabilityGrid const* trav,
         base::samples::RigidBodyState const& world_pose, 
         base::samples::RigidBodyState& grid_pose,
         double* lost_x,
@@ -759,40 +767,35 @@ bool MotionPlanningLibraries::world2grid(envire::TraversabilityGrid const* trav,
 
     // Transforms from world to local.
     base::samples::RigidBodyState local_pose;
-    Eigen::Affine3d world2local = trav->getEnvironment()->relativeTransform(
-            trav->getEnvironment()->getRootNode(),
-            trav->getFrameNode());
-    local_pose.setTransform(world2local * world_pose.getTransform());
-    
+    local_pose.setTransform(mWorld2Local * world_pose.getTransform());
+    maps::grid::Vector3d local_position(local_pose.position.x(), local_pose.position.y(), local_pose.position.z());
+
     // Calculate and set grid coordinates (and orientation).
-    size_t x_grid = 0, y_grid = 0;
+    maps::grid::Index index;
     bool ret = true;
-    double xmod = 0.0, ymod = 0.0;
+    maps::grid::Vector3d positionInCell(0.0, 0.0, 0.0);
     if(lost_x != NULL && lost_y != NULL) {
-        ret = trav->toGrid(local_pose.position.x(), local_pose.position.y(), 
-            x_grid, y_grid,
-            xmod, ymod);
-        *lost_x = xmod;
-        *lost_y = ymod;
+        ret = trav->toGrid(local_position, index, positionInCell);
+        *lost_x = positionInCell.x();
+        *lost_y = positionInCell.y();
     } else {
-        ret = trav->toGrid(local_pose.position.x(), local_pose.position.y(), 
-            x_grid, y_grid);
+        ret = trav->toGrid(local_position, index);
     }
     if(!ret) 
     {
         LOG_WARN("Position (%4.2f,%4.2f) / cell (%d,%d) is out of grid", 
-                local_pose.position.x(), local_pose.position.y(), x_grid, y_grid);
+                local_pose.position.x(), local_pose.position.y(), index.x(), index.y());
         return false;
     }
     grid_pose = local_pose; 
-    grid_pose.position.x() = x_grid;
-    grid_pose.position.y() = y_grid;
+    grid_pose.position.x() = index.x();
+    grid_pose.position.y() = index.y();
     grid_pose.position.z() = 0;
     
     return true;
 }
 
-bool MotionPlanningLibraries::grid2world(envire::TraversabilityGrid const* trav,
+bool MotionPlanningLibraries::grid2world(maps::grid::TraversabilityGrid const* trav,
         base::samples::RigidBodyState const& grid_pose,
         base::samples::RigidBodyState& world_pose) {
         
@@ -807,8 +810,8 @@ bool MotionPlanningLibraries::grid2world(envire::TraversabilityGrid const* trav,
     // Transformation GRID2LOCAL       
     //trav->fromGrid(x_grid, y_grid, x_local, y_local);
     /// \todo "Check if it is it ok: Do not use fromGrid() to avoid shifting to the cell center."
-    x_local = x_grid * trav->getScaleX() + trav->getOffsetX();
-    y_local = y_grid * trav->getScaleY() + trav->getOffsetY();
+    x_local = x_grid * trav->getResolution().x() + trav->getLocalFrame().translation().x();
+    y_local = y_grid * trav->getResolution().y() + trav->getLocalFrame().translation().y();
     
     // Readds discretization error based on the set goal pose.
     x_local += mLostX;
@@ -819,16 +822,13 @@ bool MotionPlanningLibraries::grid2world(envire::TraversabilityGrid const* trav,
     local_pose.position[1] = y_local;
     local_pose.position[2] = 0.0;
     
-    // Transformation LOCAL2WOLRD
-    Eigen::Affine3d local2world = trav->getEnvironment()->relativeTransform(
-        trav->getFrameNode(),
-        trav->getEnvironment()->getRootNode());
+    Eigen::Affine3d local2world = mWorld2Local.inverse();
     world_pose.setTransform(local2world * local_pose.getTransform() );
     
     return true;
 }
 
-bool MotionPlanningLibraries::gridlocal2world(envire::TraversabilityGrid const* trav,
+bool MotionPlanningLibraries::gridlocal2world(maps::grid::TraversabilityGrid const* trav,
         base::samples::RigidBodyState const& grid_local_pose,
         base::samples::RigidBodyState& world_pose) {
         
@@ -840,87 +840,48 @@ bool MotionPlanningLibraries::gridlocal2world(envire::TraversabilityGrid const* 
     base::samples::RigidBodyState grid_local_pose_tmp = grid_local_pose;
     
     // We got a grid local pose, but the trav map offset is still missing.
-    grid_local_pose_tmp.position[0] += trav->getOffsetX();
-    grid_local_pose_tmp.position[1] += trav->getOffsetY();
+    grid_local_pose_tmp.position[0] += trav->getLocalFrame().translation().x();
+    grid_local_pose_tmp.position[1] += trav->getLocalFrame().translation().y();
     
     // Readds discretization error based on the set goal pose.
     grid_local_pose_tmp.position[0] += mLostX;
     grid_local_pose_tmp.position[1] += mLostY;
         
-    // Transformation LOCAL2WOLRD
-    Eigen::Affine3d local2world = trav->getEnvironment()->relativeTransform(
-        trav->getFrameNode(),
-        trav->getEnvironment()->getRootNode());
+    Eigen::Affine3d local2world = mWorld2Local.inverse();
     world_pose.setTransform(local2world * grid_local_pose_tmp.getTransform() );
     
     return true;
 }
 
 // PRIVATE
-envire::TraversabilityGrid* MotionPlanningLibraries::extractTravGrid(envire::Environment* env, 
-        std::string trav_map_id) {
-    typedef envire::TraversabilityGrid e_trav;
-
-    // Extract traversability map from evironment (as an intrusive_pointer).
-    e_trav* trav_map = env->getItem< e_trav >(trav_map_id).get();
-    if(trav_map) {
-        return trav_map;
-    }
-    
-    LOG_INFO("No traversability map with id '%s' available, first trav map will be used", 
-            trav_map_id.c_str());
-          
-    std::vector<e_trav*> maps = env->getItems<e_trav>();
-    if(maps.size() < 1) {
-        LOG_WARN("Environment does not contain any traversability grids");
-        return NULL;
-    } else {
-        std::vector<e_trav*>::iterator it = maps.begin();
-        LOG_INFO("Traversability map '%s' wil be used", (*it)->getUniqueId().c_str());
-        return *it;
-    }
-}
-
-void MotionPlanningLibraries::collectCellUpdates( envire::TraversabilityGrid* old_map,
-        envire::TraversabilityGrid* new_map,
+void MotionPlanningLibraries::collectCellUpdates(maps::grid::TraversabilityGrid* old_map,
+        maps::grid::TraversabilityGrid* new_map,
         std::vector<CellUpdate>& cell_updates) {
     
-    assert(old_map->getCellSizeX() == new_map->getCellSizeX());
-    assert(old_map->getCellSizeY() == new_map->getCellSizeY());
+    assert(old_map->getNumCells().x() == new_map->getNumCells().x());
+    assert(old_map->getNumCells().y() == new_map->getNumCells().y());
 
     base::Time start_t = base::Time::now();
     
     int cell_counter = 0;
     int cell_counter_same = 0;
-    double driveability = 0.0;
-    double probability = 0.0;
-    
-    envire::Grid<uint8_t>::ArrayType& trav_old = old_map->getGridData(envire::TraversabilityGrid::TRAVERSABILITY);
-    envire::Grid<uint8_t>::ArrayType& prob_old = old_map->getGridData(envire::TraversabilityGrid::PROBABILITY);
-    envire::Grid<uint8_t>::ArrayType& trav_new = new_map->getGridData(envire::TraversabilityGrid::TRAVERSABILITY);
-    envire::Grid<uint8_t>::ArrayType& prob_new = new_map->getGridData(envire::TraversabilityGrid::PROBABILITY);
-    
-    uint8_t* trav_old_p = trav_old.origin();
-    uint8_t* prob_old_p = prob_old.origin();
-    uint8_t* trav_new_p = trav_new.origin();
-    uint8_t* prob_new_p = prob_new.origin();
+    uint8_t traversabilityClassId = 0;
+    float driveability = 0.0;
+    float probability = 0.0;
     
     // TODO Probability relevant? Currently not used as double.
-    for(unsigned int y=0; y < new_map->getCellSizeY(); ++y) {
-        for(unsigned int x=0; x < new_map->getCellSizeX(); ++x) {
-            if(*trav_old_p != *trav_new_p || *prob_old_p != *prob_new_p) {
-                driveability = new_map->getTraversabilityClass(*trav_new_p).getDrivability();
-                // Does the same conversion which is done in TraversabilityGrid.
-                probability = ((double)*prob_new_p) /std::numeric_limits< uint8_t >::max();
-                cell_updates.push_back(CellUpdate(x, y, *trav_new_p, probability, driveability));
+    for(unsigned int y = 0; y < new_map->getNumCells().y(); ++y) {
+        for(unsigned int x = 0; x < new_map->getNumCells().x(); ++x) {
+            if(old_map->getTraversabilityClassId(x, y) != new_map->getTraversabilityClassId(x, y) ||
+               old_map->getProbability(x, y) != new_map->getProbability(x, y)) {
+                traversabilityClassId = new_map->getTraversabilityClassId(x, y);
+                driveability = new_map->getTraversabilityClass(traversabilityClassId).getDrivability();
+                probability = new_map->getProbability(x, y);
+                cell_updates.push_back(CellUpdate(x, y, traversabilityClassId, probability, driveability));
                 cell_counter++;
             } else {
                 cell_counter_same++;
             }
-            trav_old_p++;
-            prob_old_p++;
-            trav_new_p++;
-            prob_new_p++;
         }
     }
     

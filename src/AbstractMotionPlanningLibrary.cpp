@@ -13,8 +13,7 @@ AbstractMotionPlanningLibrary::AbstractMotionPlanningLibrary(Config config) :
 AbstractMotionPlanningLibrary::~AbstractMotionPlanningLibrary() {
 }
 
-bool AbstractMotionPlanningLibrary::initialize(envire::TraversabilityGrid* trav_grid,
-        boost::shared_ptr<TravData> grid_data) {
+bool AbstractMotionPlanningLibrary::initialize(maps::grid::TraversabilityGrid* travGrid) {
     LOG_WARN("Abstract initialization is used");
     return false;
 }

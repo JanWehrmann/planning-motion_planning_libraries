@@ -6,7 +6,7 @@
 #include <base/Trajectory.hpp>
 #include <base-logging/Logging.hpp>
 
-#include <envire/maps/TraversabilityGrid.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
 
 #include "Config.hpp"
 #include "State.hpp"
@@ -14,19 +14,17 @@
 namespace motion_planning_libraries
 {
 
-typedef envire::TraversabilityGrid::ArrayType TravData;
-
 struct CellUpdate {
     size_t x;
     size_t y;
     uint8_t klass;
-    double probability;
-    double driveability;
+    float probability;
+    float driveability;
     
     CellUpdate() : x(0), y(0), klass(0), probability(0.0), driveability(0.0) {
     }
     
-    CellUpdate(size_t x_, size_t y_, uint8_t klass_, double probability_, double driveability_) : 
+    CellUpdate(size_t x_, size_t y_, uint8_t klass_, float probability_, float driveability_) :
             x(x_), y(y_), klass(klass_), probability(probability_), driveability(driveability_) {
     }
 };
@@ -49,8 +47,7 @@ class AbstractMotionPlanningLibrary
      * (Re-)initializes the complete planning environment using the passed 
      * traversability map / map data.
      */
-    virtual bool initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data);
+    virtual bool initialize(maps::grid::TraversabilityGrid* travGrid);
             
     /**
      * Contains a partial map update to avoid a full reinitialisation. 

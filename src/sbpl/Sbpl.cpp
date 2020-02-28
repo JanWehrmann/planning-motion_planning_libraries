@@ -2,7 +2,7 @@
 
 #include <exception>
 
-#include <envire/operators/SimpleTraversability.hpp>
+#include <maps/tools/SimpleTraversability.hpp>
 
 #include <sbpl/sbpl_exception.h>
 
@@ -49,33 +49,33 @@ bool Sbpl::solve(double time) {
     }
 }
 
-void Sbpl::createSBPLMap(envire::TraversabilityGrid* trav_grid,
-        boost::shared_ptr<TravData> trav_data) {
+void Sbpl::createSBPLMap(maps::grid::TraversabilityGrid* trav_grid) {
     
     LOG_DEBUG("SBPL createSBPLMap");
     
     // Create a new sbpl map if it has not been created yet or the number 
     // of elements have changed.
+    std::size_t trav_num_elements = trav_grid->getNumElements();
     if(mpSBPLMapData != NULL) {
-        if(trav_data->num_elements() != mSBPLNumElementsMap) {
+        if(trav_num_elements != mSBPLNumElementsMap) {
             free(mpSBPLMapData);
             mpSBPLMapData = NULL;
             
-            mpSBPLMapData = (unsigned char*)calloc(trav_data->num_elements(), sizeof(unsigned char));
-            mSBPLNumElementsMap = trav_data->num_elements();
+            mpSBPLMapData = (unsigned char*)calloc(trav_num_elements, sizeof(unsigned char));
+            mSBPLNumElementsMap = trav_num_elements;
         } else {
             memset(mpSBPLMapData, 0, mSBPLNumElementsMap);
         }
     } else {
-        mpSBPLMapData = (unsigned char*)calloc(trav_data->num_elements(), sizeof(unsigned char));
-        mSBPLNumElementsMap = trav_data->num_elements();
+        mpSBPLMapData = (unsigned char*)calloc(trav_num_elements, sizeof(unsigned char));
+        mSBPLNumElementsMap = trav_num_elements;
     }
       
     // Adds the costs to the sbpl map using the driveability value of the traversability classes.
-    double driveability = 0.0;
+    float driveability = 0.0;
     unsigned char sbpl_cost = 0;
     unsigned char* sbpl_map_p = mpSBPLMapData;
-    uint8_t* stop_p = trav_data->origin() + trav_data->num_elements();
+    maps::grid::VectorGrid<maps::grid::TraversabilityCell>::iterator it;
 
     // The calculated costs of unknown areas (mean value of all grids, see 
     // slam/envire/src/operators/SimpleTraversability)
@@ -93,12 +93,12 @@ void Sbpl::createSBPLMap(envire::TraversabilityGrid* trav_grid,
     LOG_WARN("Driveability of unknown areas is increased to %4.2f in SBPL", bad_driveability);
     */
     // Currently the default driveability of unkonwn areas (mean) is used.
-    double bad_driveability = (trav_grid->getTraversabilityClass(envire::SimpleTraversability::CLASS_UNKNOWN)).getDrivability();
+    float bad_driveability = (trav_grid->getTraversabilityClass(maps::tools::SimpleTraversability::CLASS_UNKNOWN)).getDrivability();
     
     // Fill map.
-    for(uint8_t* p = trav_data->origin(); p < stop_p; p++, sbpl_map_p++) {
-        uint8_t class_value = *p;
-        if(class_value == envire::SimpleTraversability::CLASS_UNKNOWN) {
+    for(it = trav_grid->begin(); it < trav_grid->end(); ++it, ++sbpl_map_p) {
+        uint8_t class_value = it->getTraversabilityClassId();
+        if(class_value == maps::tools::SimpleTraversability::CLASS_UNKNOWN) {
             driveability = bad_driveability;
         } else {
             driveability = (trav_grid->getTraversabilityClass(class_value)).getDrivability();

@@ -4,7 +4,7 @@
 #include <ompl/base/spaces/SE2StateSpace.h>
 #include <ompl/base/objectives/StateCostIntegralObjective.h>
 
-#include <envire/maps/TraversabilityGrid.hpp>
+#include <maps/grid/TraversabilityGrid.hpp>
 #include <base-logging/Logging.hpp>
 
 #include <motion_planning_libraries/Config.hpp>
@@ -12,9 +12,6 @@
 
 namespace motion_planning_libraries
 {
-    
-typedef envire::TraversabilityGrid::ArrayType TravData;
-
 /**
  * Using the costs of the trav grid. 
  */
@@ -26,8 +23,7 @@ class TravGridObjective :  public ompl::base::StateCostIntegralObjective {
      static const double PENALTY_TO_ADAPT_FOOTPRINT;
     
  private:
-     envire::TraversabilityGrid* mpTravGrid; // To request the driveability values.
-     boost::shared_ptr<TravData> mpTravData;
+     maps::grid::TraversabilityGrid* mpTravGrid; // To request the driveability values.
      Config mConfig;
         
  public:
@@ -42,27 +38,23 @@ class TravGridObjective :  public ompl::base::StateCostIntegralObjective {
                         Config config) : 
                 ompl::base::StateCostIntegralObjective(si, enable_motion_cost_interpolation), 
                 mpTravGrid(NULL), 
-                mpTravData(),
                 mConfig(config) {
     }     
      
     TravGridObjective(const ompl::base::SpaceInformationPtr& si, 
                         bool enable_motion_cost_interpolation,
-                        envire::TraversabilityGrid* trav_grid,
-                        boost::shared_ptr<TravData> trav_data,
+                        maps::grid::TraversabilityGrid* trav_grid,
                         Config config) : 
                 ompl::base::StateCostIntegralObjective(si, enable_motion_cost_interpolation), 
                 mpTravGrid(trav_grid), 
-                mpTravData(trav_data),
                 mConfig(config) {
     }
     
     ~TravGridObjective() {
     }
     
-    void setTravGrid(envire::TraversabilityGrid* trav_grid, boost::shared_ptr<TravData> trav_data) {
+    void setTravGrid(maps::grid::TraversabilityGrid* trav_grid) {
         mpTravGrid = trav_grid;
-        mpTravData = trav_data;
     }
     
     ompl::base::Cost stateCost(const ompl::base::State* s) const
@@ -104,8 +96,8 @@ class TravGridObjective :  public ompl::base::StateCostIntegralObjective {
         }
         
         /// \todo "Assuming: only valid states are passed?"
-        if(x < 0 || x >= mpTravGrid->getCellSizeX() || 
-                y < 0 || y >= mpTravGrid->getCellSizeY()) {
+        if(x < 0 || x >= mpTravGrid->getNumCells().x() ||
+                y < 0 || y >= mpTravGrid->getNumCells().y()) {
             LOG_WARN("Invalid state (%4.2f, %4.2f) has been passed and will be ignored", 
                    x, y); 
             throw std::runtime_error("Invalid state received");
@@ -113,15 +105,14 @@ class TravGridObjective :  public ompl::base::StateCostIntegralObjective {
         }
     
         // Estimate time to traverse the cell using forward speed and driveability.
-        double class_value = (double)(*mpTravData)[y][x];
-        double driveability = (mpTravGrid->getTraversabilityClass(class_value)).getDrivability();
+        float driveability = (mpTravGrid->getTraversability(x, y)).getDrivability();
         double cost = 0;
         if(driveability == 0 || mConfig.mMobility.mSpeed == 0) {
             cost = std::numeric_limits<double>::max();
         } else {
             // Calculate time to traverse the cell. Driveability of 1.0 means, that the cell can
             // be traversed with full speed.
-            cost = (mpTravGrid->getScaleX() / mConfig.mMobility.mSpeed) /  driveability;
+            cost = (mpTravGrid->getResolution().x() / mConfig.mMobility.mSpeed) /  driveability;
             // Increases cost regarding the footprint. Max footprint means full speed,
             // min footprint increases the cost by the number of footprint classes.
             if(mConfig.mEnvType == ENV_SHERPA) {
@@ -171,7 +162,7 @@ class TravGridObjective :  public ompl::base::StateCostIntegralObjective {
                 // change its fp.
                 double dist_m = (base::Vector2d(st_s1->getX(), st_s1->getY()) - 
                         base::Vector2d(st_s2->getX(), st_s2->getY())).norm() * 
-                        mpTravGrid->getScaleX();
+                        mpTravGrid->getResolution().x();
                 double mov_time_sec = dist_m / mConfig.mMobility.mSpeed;
                 
                 //printf("State dist %4.2f, move time %4.2f, fp time %4.2f\n",

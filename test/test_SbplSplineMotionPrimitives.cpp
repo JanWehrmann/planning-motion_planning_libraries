@@ -46,7 +46,7 @@ BOOST_AUTO_TEST_CASE(generate_end_angles)
     for(int i = 0; i < config.numAngles; ++i)
     {
         vector<int> endAngles = prims.generateEndAngles(i, config);
-        BOOST_CHECK(endAngles.size() <= config.numEndAngles);
+        BOOST_CHECK(static_cast<int>(endAngles.size()) <= config.numEndAngles);
         
         set<int> angleSet;
         for(int angle : endAngles)

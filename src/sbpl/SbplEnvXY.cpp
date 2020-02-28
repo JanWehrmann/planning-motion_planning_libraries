@@ -10,13 +10,12 @@ SbplEnvXY::SbplEnvXY(Config config) : Sbpl(config) {
     LOG_DEBUG("SBPLEnvXY constructor");
 }
 
-bool SbplEnvXY::initialize(envire::TraversabilityGrid* trav_grid,
-            boost::shared_ptr<TravData> grid_data) { 
+bool SbplEnvXY::initialize(maps::grid::TraversabilityGrid* trav_grid) {
     
     LOG_DEBUG("SBPLEnvXY initialize");
     
-    size_t grid_width = trav_grid->getCellSizeX();
-    size_t grid_height = trav_grid->getCellSizeY();
+    size_t grid_width = trav_grid->getNumCells().x();
+    size_t grid_height = trav_grid->getNumCells().y();
 
     mpSBPLEnv = boost::shared_ptr<EnvironmentNAV2D>(new EnvironmentNAV2D());
          
@@ -27,7 +26,7 @@ bool SbplEnvXY::initialize(envire::TraversabilityGrid* trav_grid,
             mpSBPLEnv->InitializeEnv(mConfig.mSBPLEnvFile.c_str());
         // Create an sbpl-environment.
         } else {
-            createSBPLMap(trav_grid, grid_data);
+            createSBPLMap(trav_grid);
 
             LOG_INFO("Create SBPL EnvironmentNAV2D environment");
             boost::shared_ptr<EnvironmentNAV2D> env_xy =
@@ -181,6 +180,9 @@ enum MplErrors SbplEnvXY::isStartGoalValid() {
         err += (int)MPL_ERR_START_ON_OBSTACLE;
     }
     
+    std::cout << mGoalGrid[0] << std::endl;
+    std::cout << mGoalGrid[1] << std::endl;
+
     if(!env_xy->IsObstacle(mGoalGrid[0], mGoalGrid[1])) {
         err += (int)MPL_ERR_GOAL_ON_OBSTACLE;
     }
